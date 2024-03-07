@@ -14,6 +14,7 @@ namespace Ryujinx.UI.Common.Helper
         public static string Profile { get; private set; }
         public static string LaunchPathArg { get; private set; }
         public static bool StartFullscreenArg { get; private set; }
+        public static string PortablePathArg { get; private set; }
 
         public static void ParseArguments(string[] args)
         {
@@ -86,6 +87,19 @@ namespace Ryujinx.UI.Common.Helper
                         }
 
                         OverrideHideCursor = args[++i];
+                        break;
+                    case "--portable-path":
+                        if (i + 1 >= args.Length)
+                        {
+                            Logger.Error?.Print(LogClass.Application, $"Invalid option '{arg}'");
+
+                            continue;
+                        }
+
+                        PortablePathArg = args[++i];
+
+                        arguments.Add(arg);
+                        arguments.Add(args[i]);
                         break;
                     default:
                         LaunchPathArg = arg;

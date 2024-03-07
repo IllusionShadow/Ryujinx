@@ -1,0 +1,1 @@
+dotnet publish -c Release -r win-x64 -o ./publish -p:Version="1.1.0" -p:DebugType=embedded -p:ExtraDefineConstants=DISABLE_UPDATER src/Ryujinx --self-contained true

@@ -47,7 +47,7 @@ namespace Ryujinx.Common.Configuration
             KeysDirPathUser = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".switch");
         }
 
-        public static void Initialize(string baseDirPath)
+        public static void Initialize(string baseDirPath, string portablePathArg)
         {
             string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
 
@@ -70,7 +70,12 @@ namespace Ryujinx.Common.Configuration
                 }
             }
 
-            if (Directory.Exists(portablePath))
+            if (!string.IsNullOrEmpty(portablePathArg))
+            {
+                BaseDirPath = Path.Combine(portablePathArg, DefaultPortableDir);
+                Mode = LaunchMode.Portable;
+            }
+            else if (Directory.Exists(portablePath))
             {
                 BaseDirPath = portablePath;
                 Mode = LaunchMode.Portable;

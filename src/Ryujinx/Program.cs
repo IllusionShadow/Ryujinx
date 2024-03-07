@@ -85,7 +85,7 @@ namespace Ryujinx.Ava
             AppDomain.CurrentDomain.ProcessExit += (sender, e) => Exit();
 
             // Setup base data directory.
-            AppDataManager.Initialize(CommandLineState.BaseDirPathArg);
+            AppDataManager.Initialize(CommandLineState.BaseDirPathArg, CommandLineState.PortablePathArg);
 
             // Initialize the configuration.
             ConfigurationState.Initialize();
