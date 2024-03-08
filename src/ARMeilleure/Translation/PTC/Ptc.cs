@@ -401,11 +401,16 @@ namespace ARMeilleure.Translation.PTC
                 string fileNameActual = $"{CachePathActual}.cache";
                 string fileNameBackup = $"{CachePathBackup}.cache";
 
-                FileInfo fileInfoActual = new(fileNameActual);
+                /*FileInfo fileInfoActual = new(fileNameActual);
 
                 if (fileInfoActual.Exists && fileInfoActual.Length != 0L)
                 {
                     File.Copy(fileNameActual, fileNameBackup, true);
+                }*/
+                //If exists delete
+                if (File.Exists(fileNameBackup))
+                {
+                    File.Delete(fileNameBackup);
                 }
 
                 Save(fileNameActual);
