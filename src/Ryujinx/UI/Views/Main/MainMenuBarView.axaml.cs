@@ -192,22 +192,38 @@ namespace Ryujinx.Ava.UI.Views.Main
         {
             foreach(string titleId in Directory.EnumerateDirectories(AppDataManager.GamesDirPath))
             {
-                string cpuCache0 = Path.Combine(titleId, "cache", "cpu", "0");
-                if (Directory.Exists(cpuCache0))
-                {
-                    foreach(string file in Directory.EnumerateFiles(cpuCache0))
-                    {
-                        if(file.EndsWith(".cache"))
-                        {
-                            File.Delete(file);
-                        }
-                    }
-                }
-
+                
                 string cpuCache1 = Path.Combine(titleId, "cache", "cpu", "1");
                 if (Directory.Exists(cpuCache1))
                 {
                     Directory.Delete(cpuCache1, true);
+                }
+                
+                string cpuCache0 = Path.Combine(titleId, "cache", "cpu", "0");
+                if (Directory.Exists(cpuCache0))
+                {
+                    var files = Directory.EnumerateFiles(cpuCache0);
+                    if(files.Count()>2)
+                    {
+                        var maxVersion = "";
+                        foreach(string file in files)
+                        {
+                            if(file.EndsWith(".info") && file.CompareTo(maxVersion)>0)
+                            {
+                                maxVersion = file.Split(".info")[0];
+                            }
+                        }
+
+                        if(maxVersion=="") continue;
+
+                        foreach(string file in files)
+                        {
+                            if(!file.Contains(maxVersion))
+                            {
+                                File.Delete(file);
+                            }
+                        }
+                    }
                 }
             }
 
