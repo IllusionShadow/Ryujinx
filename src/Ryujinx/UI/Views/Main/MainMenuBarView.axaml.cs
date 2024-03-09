@@ -8,6 +8,7 @@ using Ryujinx.Ava.UI.Helpers;
 using Ryujinx.Ava.UI.ViewModels;
 using Ryujinx.Ava.UI.Windows;
 using Ryujinx.Common;
+using Ryujinx.Common.Configuration;
 using Ryujinx.Common.Utilities;
 using Ryujinx.Modules;
 using Ryujinx.UI.Common;
@@ -185,6 +186,52 @@ namespace Ryujinx.Ava.UI.Views.Main
             {
                 ViewModel.IsAmiiboRequested = Window.ViewModel.AppHost.Device.System.SearchingForAmiibo(out _);
             }
+        }
+
+        private async void CleanCPUCache_Click(object sender, RoutedEventArgs e)
+        {
+            foreach(string titleId in Directory.EnumerateDirectories(AppDataManager.GamesDirPath))
+            {
+                string cpuCache0 = Path.Combine(titleId, "cache", "cpu", "0");
+                if (Directory.Exists(cpuCache0))
+                {
+                    foreach(string file in Directory.EnumerateFiles(cpuCache0))
+                    {
+                        if(file.EndsWith(".cache"))
+                        {
+                            File.Delete(file);
+                        }
+                    }
+                }
+
+                string cpuCache1 = Path.Combine(titleId, "cache", "cpu", "1");
+                if (Directory.Exists(cpuCache1))
+                {
+                    Directory.Delete(cpuCache1, true);
+                }
+            }
+
+            await ContentDialogHelper.CreateInfoDialog(LocaleManager.Instance[LocaleKeys.MenuBarCleanCPUCache], string.Empty, LocaleManager.Instance[LocaleKeys.InputDialogOk], string.Empty, string.Empty);
+        }
+
+        private async void CleanShaders_Click(object sender, RoutedEventArgs e)
+        {
+            foreach(string titleId in Directory.EnumerateDirectories(AppDataManager.GamesDirPath))
+            {
+                string shaderFolder = Path.Combine(titleId, "cache", "shader");
+                if (Directory.Exists(shaderFolder))
+                {
+                    foreach(string file in Directory.EnumerateFiles(shaderFolder))
+                    {
+                        if(file.Contains("vulkan_") || file.Contains("opengl_"))
+                        {
+                            File.Delete(file);
+                        }
+                    }
+                }
+            }
+
+            await ContentDialogHelper.CreateInfoDialog(LocaleManager.Instance[LocaleKeys.MenuBarCleanShaders], string.Empty, LocaleManager.Instance[LocaleKeys.InputDialogOk], string.Empty, string.Empty);
         }
 
         private async void InstallFileTypes_Click(object sender, RoutedEventArgs e)

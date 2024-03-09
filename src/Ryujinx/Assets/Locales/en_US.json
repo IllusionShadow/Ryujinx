@@ -33,6 +33,8 @@
   "MenuBarHelp": "_Help",
   "MenuBarHelpCheckForUpdates": "Check for Updates",
   "MenuBarHelpAbout": "About",
+  "MenuBarCleanCPUCache": "Clean CPU cache",
+  "MenuBarCleanShaders": "Clean Shaders",
   "MenuSearch": "Search...",
   "GameListHeaderFavorite": "Fav",
   "GameListHeaderIcon": "Icon",

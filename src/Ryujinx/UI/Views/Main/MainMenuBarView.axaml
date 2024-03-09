@@ -184,6 +184,9 @@
                     <MenuItem Header="{locale:Locale MenuBarToolsInstallFileTypes}" Click="InstallFileTypes_Click"/>
                     <MenuItem Header="{locale:Locale MenuBarToolsUninstallFileTypes}" Click="UninstallFileTypes_Click"/>
                 </MenuItem>
+                <MenuItem Header="{locale:Locale MenuBarCleanCPUCache}" IsEnabled="{Binding EnableNonGameRunningControls}" Click="CleanCPUCache_Click" />
+                <MenuItem Header="{locale:Locale MenuBarCleanShaders}" IsEnabled="{Binding EnableNonGameRunningControls}" Click="CleanShaders_Click" />
+                    
             </MenuItem>
             <MenuItem VerticalAlignment="Center" Header="{locale:Locale MenuBarHelp}">
                 <MenuItem
