@@ -100,7 +100,7 @@ namespace Ryujinx.Graphics.Vulkan
 
             unsafe Auto<DisposableImageView> CreateImageView(ComponentMapping cm, ImageSubresourceRange sr, ImageViewType viewType, ImageUsageFlags usageFlags)
             {
-                var usage = new ImageViewUsageCreateInfo
+                var imageViewUsage = new ImageViewUsageCreateInfo
                 {
                     SType = StructureType.ImageViewUsageCreateInfo,
                     Usage = usageFlags,
@@ -114,7 +114,7 @@ namespace Ryujinx.Graphics.Vulkan
                     Format = format,
                     Components = cm,
                     SubresourceRange = sr,
-                    PNext = &usage,
+                    PNext = &imageViewUsage,
                 };
 
                 gd.Api.CreateImageView(device, imageCreateInfo, null, out var imageView).ThrowOnError();
@@ -123,7 +123,7 @@ namespace Ryujinx.Graphics.Vulkan
 
             ImageUsageFlags shaderUsage = ImageUsageFlags.SampledBit;
 
-            if (info.Format.IsImageCompatible())
+            if (info.Format.IsImageCompatible() && (_gd.Capabilities.SupportsShaderStorageImageMultisample || !info.Target.IsMultisample()))
             {
                 shaderUsage |= ImageUsageFlags.StorageBit;
             }
@@ -154,7 +154,7 @@ namespace Ryujinx.Graphics.Vulkan
                 }
                 else
                 {
-                    subresourceRange = new ImageSubresourceRange(aspectFlags, (uint)firstLevel, levels, (uint)firstLayer, (uint)info.Depth);
+                    subresourceRange = new ImageSubresourceRange(aspectFlags, (uint)firstLevel, 1, (uint)firstLayer, (uint)info.Depth);
 
                     _imageView2dArray = CreateImageView(identityComponentMapping, subresourceRange, ImageViewType.Type2DArray, usage);
                 }
@@ -667,8 +667,36 @@ namespace Ryujinx.Graphics.Vulkan
 
             if (PrepareOutputBuffer(cbs, hostSize, buffer, out VkBuffer copyToBuffer, out BufferHolder tempCopyHolder))
             {
+                // No barrier necessary, as this is a temporary copy buffer.
                 offset = 0;
             }
+            else
+            {
+                BufferHolder.InsertBufferBarrier(
+                    _gd,
+                    cbs.CommandBuffer,
+                    copyToBuffer,
+                    BufferHolder.DefaultAccessFlags,
+                    AccessFlags.TransferWriteBit,
+                    PipelineStageFlags.AllCommandsBit,
+                    PipelineStageFlags.TransferBit,
+                    offset,
+                    outSize);
+            }
+
+            InsertImageBarrier(
+                _gd.Api,
+                cbs.CommandBuffer,
+                image,
+                TextureStorage.DefaultAccessMask,
+                AccessFlags.TransferReadBit,
+                PipelineStageFlags.AllCommandsBit,
+                PipelineStageFlags.TransferBit,
+                Info.Format.ConvertAspectFlags(),
+                FirstLayer + layer,
+                FirstLevel + level,
+                1,
+                1);
 
             CopyFromOrToBuffer(cbs.CommandBuffer, copyToBuffer, image, hostSize, true, layer, level, 1, 1, singleSlice: true, offset, stride);
 
@@ -676,6 +704,19 @@ namespace Ryujinx.Graphics.Vulkan
             {
                 CopyDataToOutputBuffer(cbs, tempCopyHolder, autoBuffer, hostSize, range.Offset);
                 tempCopyHolder.Dispose();
+            }
+            else
+            {
+                BufferHolder.InsertBufferBarrier(
+                    _gd,
+                    cbs.CommandBuffer,
+                    copyToBuffer,
+                    AccessFlags.TransferWriteBit,
+                    BufferHolder.DefaultAccessFlags,
+                    PipelineStageFlags.TransferBit,
+                    PipelineStageFlags.AllCommandsBit,
+                    offset,
+                    outSize);
             }
         }
 
@@ -993,7 +1034,7 @@ namespace Ryujinx.Graphics.Vulkan
             throw new NotImplementedException();
         }
 
-        public (Auto<DisposableRenderPass> renderPass, Auto<DisposableFramebuffer> framebuffer) GetPassAndFramebuffer(
+        public (RenderPassHolder rpHolder, Auto<DisposableFramebuffer> framebuffer) GetPassAndFramebuffer(
             VulkanRenderer gd,
             Device device,
             CommandBufferScoped cbs,
@@ -1006,7 +1047,7 @@ namespace Ryujinx.Graphics.Vulkan
                 rpHolder = new RenderPassHolder(gd, device, key, fb);
             }
 
-            return (rpHolder.GetRenderPass(), rpHolder.GetFramebuffer(gd, cbs, fb));
+            return (rpHolder, rpHolder.GetFramebuffer(gd, cbs, fb));
         }
 
         public void AddRenderPass(RenderPassCacheKey key, RenderPassHolder renderPass)

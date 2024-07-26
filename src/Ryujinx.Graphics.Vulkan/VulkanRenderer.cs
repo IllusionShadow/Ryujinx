@@ -87,9 +87,11 @@ namespace Ryujinx.Graphics.Vulkan
         internal bool IsAmdGcn { get; private set; }
         internal bool IsNvidiaPreTuring { get; private set; }
         internal bool IsIntelArc { get; private set; }
+        internal bool IsQualcommProprietary { get; private set; }
         internal bool IsMoltenVk { get; private set; }
         internal bool IsTBDR { get; private set; }
         internal bool IsSharedMemory { get; private set; }
+
         public string GpuVendor { get; private set; }
         public string GpuDriver { get; private set; }
         public string GpuRenderer { get; private set; }
@@ -344,7 +346,7 @@ namespace Ryujinx.Graphics.Vulkan
                 {
                     IsNvidiaPreTuring = gpuNumber < 2000;
                 }
-                else if (GpuDriver.Contains("TITAN") && !GpuDriver.Contains("RTX"))
+                else if (GpuRenderer.Contains("TITAN") && !GpuRenderer.Contains("RTX"))
                 {
                     IsNvidiaPreTuring = true;
                 }
@@ -353,6 +355,8 @@ namespace Ryujinx.Graphics.Vulkan
             {
                 IsIntelArc = GpuRenderer.StartsWith("Intel(R) Arc(TM)");
             }
+
+            IsQualcommProprietary = hasDriverProperties && driverProperties.DriverID == DriverId.QualcommProprietary;
 
             ulong minResourceAlignment = Math.Max(
                 Math.Max(
@@ -411,7 +415,7 @@ namespace Ryujinx.Graphics.Vulkan
             Api.TryGetDeviceExtension(_instance.Instance, _device, out ExtExternalMemoryHost hostMemoryApi);
             HostMemoryAllocator = new HostMemoryAllocator(MemoryAllocator, Api, hostMemoryApi, _device);
 
-            CommandBufferPool = new CommandBufferPool(Api, _device, Queue, QueueLock, queueFamilyIndex);
+            CommandBufferPool = new CommandBufferPool(Api, _device, Queue, QueueLock, queueFamilyIndex, IsQualcommProprietary);
 
             PipelineLayoutCache = new PipelineLayoutCache();
 
@@ -688,7 +692,7 @@ namespace Ryujinx.Graphics.Vulkan
                 GpuVendor,
                 memoryType: memoryType,
                 hasFrontFacingBug: IsIntelWindows,
-                hasVectorIndexingBug: Vendor == Vendor.Qualcomm,
+                hasVectorIndexingBug: IsQualcommProprietary,
                 needsFragmentOutputSpecialization: IsMoltenVk,
                 reduceShaderPrecision: IsMoltenVk,
                 supportsAstcCompression: features2.Features.TextureCompressionAstcLdr && supportsAstcFormats,
@@ -933,6 +937,11 @@ namespace Ryujinx.Graphics.Vulkan
         public void OnScreenCaptured(ScreenCaptureImageInfo bitmap)
         {
             ScreenCaptured?.Invoke(this, bitmap);
+        }
+
+        public bool SupportsRenderPassBarrier(PipelineStageFlags flags)
+        {
+            return !(IsMoltenVk || IsQualcommProprietary);
         }
 
         public unsafe void Dispose()
