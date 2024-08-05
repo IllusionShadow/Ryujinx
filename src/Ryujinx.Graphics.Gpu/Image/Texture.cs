@@ -12,6 +12,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
+using Ryujinx.Common;
+using System.IO;
+using System.IO.Compression;
+using System.Threading.Tasks;
 
 namespace Ryujinx.Graphics.Gpu.Image
 {
@@ -797,6 +801,29 @@ namespace Ryujinx.Graphics.Gpu.Image
             {
                 using (result)
                 {
+
+                    string textureDumpPath = "F:\\Emulators\\Ryujinx\\Textures";
+
+                    if (!string.IsNullOrEmpty(textureDumpPath))
+                    {
+                        textureDumpPath = Path.Combine(textureDumpPath, GraphicsConfig.TitleId);
+                    }
+                    if(!Directory.Exists(textureDumpPath)) Directory.CreateDirectory(textureDumpPath);
+
+                    Hash128 hash = XXHash128.ComputeHash(data);
+                    String textureFile = Path.Combine(textureDumpPath, $"{hash.High:x16}{hash.Low:x16}.tex");
+
+                    if (File.Exists(textureFile)) {
+                        MemoryStream input = new MemoryStream(File.ReadAllBytes(textureFile));
+                        MemoryStream output = new MemoryStream();
+                        using (BrotliStream dstream = new BrotliStream(input, CompressionMode.Decompress))
+                        {
+                            dstream.CopyTo(output);
+                        }
+
+                        return MemoryOwner<byte>.RentCopy(output.ToArray());
+                    }
+
                     if (!AstcDecoder.TryDecodeToRgba8P(
                         result.Memory,
                         Info.FormatInfo.BlockWidth,
@@ -817,7 +844,11 @@ namespace Ryujinx.Graphics.Gpu.Image
                     {
                         using (decoded)
                         {
-                            return BCnEncoder.EncodeBC7(decoded.Memory, width, height, sliceDepth, levels, layers);
+                            IMemoryOwner<byte> recompress = BCnEncoder.EncodeBC7(decoded.Memory, width, height, sliceDepth, levels, layers);
+
+                            Task.Run(() => CompressAndSave(recompress.Memory.ToArray(), textureFile));
+                            
+                            return recompress;
                         }
                     }
 
@@ -957,6 +988,15 @@ namespace Ryujinx.Graphics.Gpu.Image
 
             return result;
         }
+
+        public static void CompressAndSave(byte[] recompress, String textureFilePath){
+            MemoryStream output = new MemoryStream();
+            BrotliStream compressor = new BrotliStream(output, CompressionLevel.Fastest);
+            compressor.Write(recompress, 0, recompress.Length);
+            File.WriteAllBytes(textureFilePath, output.ToArray());
+            compressor.Dispose();
+        }
+
 
         /// <summary>
         /// Converts texture data from a format and layout that is supported by the host GPU, back into the intended format on the guest GPU.
