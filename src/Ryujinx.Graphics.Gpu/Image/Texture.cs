@@ -16,6 +16,7 @@ using Ryujinx.Common;
 using System.IO;
 using System.IO.Compression;
 using System.Threading.Tasks;
+using K4os.Compression.LZ4.Streams;
 
 namespace Ryujinx.Graphics.Gpu.Image
 {
@@ -814,9 +815,8 @@ namespace Ryujinx.Graphics.Gpu.Image
                     String textureFile = Path.Combine(textureDumpPath, $"{hash.High:x16}{hash.Low:x16}.tex");
 
                     if (File.Exists(textureFile)) {
-                        MemoryStream input = new MemoryStream(File.ReadAllBytes(textureFile));
-                        MemoryStream output = new MemoryStream();
-                        using (BrotliStream dstream = new BrotliStream(input, CompressionMode.Decompress))
+                        using MemoryStream output = new MemoryStream();
+                        using (var dstream = LZ4Stream.Decode(File.OpenRead(textureFile)))
                         {
                             dstream.CopyTo(output);
                         }
@@ -989,12 +989,12 @@ namespace Ryujinx.Graphics.Gpu.Image
             return result;
         }
 
-        public static async void CompressAndSave(byte[] recompress, String textureFilePath){
+        public static void CompressAndSave(byte[] recompress, String textureFilePath){
             using var output = new MemoryStream();
-            using var compressor = new BrotliStream(output, CompressionLevel.SmallestSize, true);
-            await compressor.WriteAsync(recompress, 0, recompress.Length);
+            using var compressor = LZ4Stream.Encode(output, K4os.Compression.LZ4.LZ4Level.L09_HC);
+            compressor.Write(recompress, 0, recompress.Length);
             compressor.Close();
-            await File.WriteAllBytesAsync(textureFilePath, output.ToArray());
+            File.WriteAllBytes(textureFilePath, output.ToArray());
         }
 
 
