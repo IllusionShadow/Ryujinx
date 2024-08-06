@@ -847,7 +847,7 @@ namespace Ryujinx.Graphics.Gpu.Image
                             IMemoryOwner<byte> recompress = BCnEncoder.EncodeBC7(decoded.Memory, width, height, sliceDepth, levels, layers);
 
                             Task.Run(() => CompressAndSave(recompress.Memory.ToArray(), textureFile));
-                            
+
                             return recompress;
                         }
                     }
@@ -989,12 +989,12 @@ namespace Ryujinx.Graphics.Gpu.Image
             return result;
         }
 
-        public static void CompressAndSave(byte[] recompress, String textureFilePath){
-            MemoryStream output = new MemoryStream();
-            BrotliStream compressor = new BrotliStream(output, CompressionLevel.Fastest);
-            compressor.Write(recompress, 0, recompress.Length);
-            File.WriteAllBytes(textureFilePath, output.ToArray());
-            compressor.Dispose();
+        public static async void CompressAndSave(byte[] recompress, String textureFilePath){
+            using var output = new MemoryStream();
+            using var compressor = new BrotliStream(output, CompressionLevel.SmallestSize, true);
+            await compressor.WriteAsync(recompress, 0, recompress.Length);
+            compressor.Close();
+            await File.WriteAllBytesAsync(textureFilePath, output.ToArray());
         }
 
 
