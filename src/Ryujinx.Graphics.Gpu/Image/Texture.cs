@@ -815,13 +815,15 @@ namespace Ryujinx.Graphics.Gpu.Image
                     String textureFile = Path.Combine(textureDumpPath, $"{hash.High:x16}{hash.Low:x16}.tex");
 
                     if (File.Exists(textureFile)) {
-                        using MemoryStream output = new MemoryStream();
-                        using (var dstream = LZ4Stream.Decode(File.OpenRead(textureFile)))
-                        {
-                            dstream.CopyTo(output);
-                        }
+                        try{
+                            using MemoryStream output = new MemoryStream();
+                            using (var dstream = LZ4Stream.Decode(File.OpenRead(textureFile)))
+                            {
+                                dstream.CopyTo(output);
+                            }
 
-                        return MemoryOwner<byte>.RentCopy(output.ToArray());
+                            return MemoryOwner<byte>.RentCopy(output.ToArray());
+                        } catch (IOException){}
                     }
 
                     if (!AstcDecoder.TryDecodeToRgba8P(
@@ -990,6 +992,7 @@ namespace Ryujinx.Graphics.Gpu.Image
         }
 
         public static void CompressAndSave(byte[] recompress, String textureFilePath){
+            if(recompress.Length==0 || File.Exists(textureFilePath)) return;
             using var output = new MemoryStream();
             using var compressor = LZ4Stream.Encode(output, K4os.Compression.LZ4.LZ4Level.L09_HC);
             compressor.Write(recompress, 0, recompress.Length);
