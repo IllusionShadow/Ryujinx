@@ -293,6 +293,23 @@ namespace Ryujinx.Ava.UI.Controls
             }
         }
 
+        public void OpenTextureCacheDirectory_Click(object sender, RoutedEventArgs args)
+        {
+            var viewModel = (sender as MenuItem)?.DataContext as MainWindowViewModel;
+
+            if (viewModel?.SelectedApplication != null)
+            {
+                string textureCacheDir = Path.Combine(AppDataManager.BaseDirPath, "texture_cache", viewModel.SelectedApplication.IdString);
+
+                if (!Directory.Exists(textureCacheDir))
+                {
+                    return;
+                }
+
+                OpenHelper.OpenFolder(textureCacheDir);
+            }
+        }
+
         public async void ExtractApplicationExeFs_Click(object sender, RoutedEventArgs args)
         {
             var viewModel = (sender as MenuItem)?.DataContext as MainWindowViewModel;

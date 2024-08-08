@@ -541,6 +541,18 @@ namespace Ryujinx.UI.Widgets
             OpenHelper.OpenFolder(shaderCacheDir);
         }
 
+        private void OpenTextureCacheDir_Clicked(object sender, EventArgs args)
+        {
+            string textureCacheDir = System.IO.Path.Combine(AppDataManager.BaseDirPath, "texture_cache", _applicationData.IdString);
+
+            if (!Directory.Exists(textureCacheDir))
+            {
+                return;
+            }
+
+            OpenHelper.OpenFolder(textureCacheDir);
+        }
+
         private void PurgePtcCache_Clicked(object sender, EventArgs args)
         {
             DirectoryInfo mainDir = new(System.IO.Path.Combine(AppDataManager.GamesDirPath, _applicationData.IdString, "cache", "cpu", "0"));

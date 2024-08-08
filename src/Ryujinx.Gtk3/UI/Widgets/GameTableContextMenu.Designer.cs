@@ -24,6 +24,7 @@ namespace Ryujinx.UI.Widgets
         private MenuItem _purgeShaderCacheMenuItem;
         private MenuItem _openPtcDirMenuItem;
         private MenuItem _openShaderCacheDirMenuItem;
+        private MenuItem _openTextureCacheDirMenuItem;
         private MenuItem _createShortcutMenuItem;
 
         private void InitializeComponent()
@@ -190,6 +191,15 @@ namespace Ryujinx.UI.Widgets
             _openShaderCacheDirMenuItem.Activated += OpenShaderCacheDir_Clicked;
 
             //
+            // _openTextureCacheDirMenuItem
+            //
+            _openTextureCacheDirMenuItem = new MenuItem("Open Texture Cache Directory")
+            {
+                TooltipText = "Open the directory which contains the Application's texture cache.",
+            };
+            _openTextureCacheDirMenuItem.Activated += OpenTextureCacheDir_Clicked;
+
+            //
             // _createShortcutMenuItem
             //
             _createShortcutMenuItem = new MenuItem("Create Application Shortcut")
@@ -211,6 +221,7 @@ namespace Ryujinx.UI.Widgets
             _manageSubMenu.Append(_purgeShaderCacheMenuItem);
             _manageSubMenu.Append(_openPtcDirMenuItem);
             _manageSubMenu.Append(_openShaderCacheDirMenuItem);
+            _manageSubMenu.Append(_openTextureCacheDirMenuItem);
 
             Add(_createShortcutMenuItem);
             Add(new SeparatorMenuItem());

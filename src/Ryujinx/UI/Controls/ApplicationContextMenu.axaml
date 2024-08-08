@@ -77,6 +77,10 @@
             Click="OpenShaderCacheDirectory_Click"
             Header="{locale:Locale GameListContextMenuCacheManagementOpenShaderCacheDirectory}"
             ToolTip.Tip="{locale:Locale GameListContextMenuCacheManagementOpenShaderCacheDirectoryToolTip}" />
+        <MenuItem
+            Click="OpenTextureCacheDirectory_Click"
+            Header="{locale:Locale GameListContextMenuCacheManagementOpenTextureCacheDirectory}"
+            ToolTip.Tip="{locale:Locale GameListContextMenuCacheManagementOpenTextureCacheDirectoryToolTip}" />
     </MenuItem>
     <MenuItem Header="{locale:Locale GameListContextMenuExtractData}">
         <MenuItem
