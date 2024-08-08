@@ -1,3 +1,6 @@
+using K4os.Compression.LZ4.Streams;
+using Ryujinx.Common;
+using Ryujinx.Common.Configuration;
 using Ryujinx.Common.Logging;
 using Ryujinx.Common.Memory;
 using Ryujinx.Graphics.GAL;
@@ -12,11 +15,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
-using Ryujinx.Common;
 using System.IO;
-using System.IO.Compression;
-using System.Threading.Tasks;
-using K4os.Compression.LZ4.Streams;
 
 namespace Ryujinx.Graphics.Gpu.Image
 {
@@ -802,35 +801,41 @@ namespace Ryujinx.Graphics.Gpu.Image
             {
                 using (result)
                 {
+                    Stopwatch sw = null;
+                    String textureHash = "";
+                    String textureFileNoCompression = "";
+                    String textureFileCompression = "";
 
-                    string textureDumpPath = "F:\\Emulators\\Ryujinx\\Textures";
+                    if (GraphicsConfig.EnableTextureRecompression) {
 
-                    if (!string.IsNullOrEmpty(textureDumpPath))
-                    {
-                        textureDumpPath = Path.Combine(textureDumpPath, GraphicsConfig.TitleId);
-                    }
-                    if(!Directory.Exists(textureDumpPath)) Directory.CreateDirectory(textureDumpPath);
+                        String textureCachePath = Path.Combine(AppDataManager.BaseDirPath, "texture_cache");
 
-                    Hash128 hash = XXHash128.ComputeHash(data);
-                    String textureFileNoCompression = Path.Combine(textureDumpPath, $"{hash.High:x16}{hash.Low:x16}.tex");
-                    String textureFileCompression = Path.Combine(textureDumpPath, $"{hash.High:x16}{hash.Low:x16}.lz4");
-
-                    if (File.Exists(textureFileNoCompression)) {
-                            return MemoryOwner<byte>.RentCopy(File.ReadAllBytes(textureFileNoCompression));
-                    } 
-                    if (File.Exists(textureFileCompression)) {
-                        using MemoryStream output = new MemoryStream();
-                        using (var dstream = LZ4Stream.Decode(File.OpenRead(textureFileCompression)))
+                        if (!string.IsNullOrEmpty(textureCachePath))
                         {
-                            dstream.CopyTo(output);
+                            textureCachePath = Path.Combine(textureCachePath, GraphicsConfig.TitleId);
                         }
-                        var mem = MemoryOwner<byte>.RentCopy(output.ToArray());
-                    }
+                        if(!Directory.Exists(textureCachePath)) Directory.CreateDirectory(textureCachePath);
 
-                    Stopwatch sw = null; 
-                    if (GraphicsConfig.EnableTextureRecompression)
+                        Hash128 hash = XXHash128.ComputeHash(data);
+                        textureHash = $"{hash.High:x16}{hash.Low:x16}";
+                        textureFileNoCompression = Path.Combine(textureCachePath, textureHash + ".tex");
+                        textureFileCompression = Path.Combine(textureCachePath, textureHash + ".lz4");
+
+                        if (File.Exists(textureFileNoCompression)) {
+                                return MemoryOwner<byte>.RentCopy(File.ReadAllBytes(textureFileNoCompression));
+                        } 
+                        if (File.Exists(textureFileCompression)) {
+                            using MemoryStream output = new MemoryStream();
+                            using (var dstream = LZ4Stream.Decode(File.OpenRead(textureFileCompression)))
+                            {
+                                dstream.CopyTo(output);
+                            }
+                            return MemoryOwner<byte>.RentCopy(output.ToArray());
+                        }
+                    
                         sw = new Stopwatch();
                         sw.Start();
+                    }
 
                     if (!AstcDecoder.TryDecodeToRgba8P(
                         result.Memory,
@@ -867,10 +872,10 @@ namespace Ryujinx.Graphics.Gpu.Image
                             
                             if(outArray.Length*2 < recompArray.Length) { //If compresses more than 2x the original size
                                 File.WriteAllBytes(textureFileCompression, outArray);
-                                Logger.Info?.Print(LogClass.Gpu, "Saved to disk texture with id "+ $"{hash.High:x16}{hash.Low:x16}.lz4" + $" Time to recompress: {sw.ElapsedMilliseconds}. Size original: {recompArray.Length}. Size compressed: {outArray.Length}");
+                                Logger.Info?.Print(LogClass.Gpu, "Saved to disk texture with id " + textureHash + ".lz4" + $" Time to recompress: {sw.ElapsedMilliseconds}. Size original: {recompArray.Length}. Size compressed: {outArray.Length}");
                             } else {
                                 File.WriteAllBytes(textureFileNoCompression, recompArray);
-                                Logger.Info?.Print(LogClass.Gpu, "Saved to disk texture with id "+ $"{hash.High:x16}{hash.Low:x16}.tex" + $" Time to recompress: {sw.ElapsedMilliseconds}. Size original: {recompArray.Length}. Size compressed: {outArray.Length}");
+                                Logger.Info?.Print(LogClass.Gpu, "Saved to disk texture with id " + textureHash + ".tex" + $" Time to recompress: {sw.ElapsedMilliseconds}. Size original: {recompArray.Length}. Size compressed: {outArray.Length}");
                             }
 
                             return recompress;
