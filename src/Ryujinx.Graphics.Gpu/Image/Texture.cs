@@ -16,6 +16,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.IO;
+using System.IO.Compression;
 
 namespace Ryujinx.Graphics.Gpu.Image
 {
@@ -744,6 +745,7 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// <param name="level">Mip level to convert</param>
         /// <param name="single">True to convert a single slice</param>
         /// <returns>Converted data</returns>
+
         public IMemoryOwner<byte> ConvertToHostCompatibleFormat(ReadOnlySpan<byte> data, int level = 0, bool single = false)
         {
             int width = Info.Width;
@@ -801,40 +803,35 @@ namespace Ryujinx.Graphics.Gpu.Image
             {
                 using (result)
                 {
-                    Stopwatch sw = null;
                     String textureHash = "";
-                    String textureFileNoCompression = "";
-                    String textureFileCompression = "";
+                    String textureCacheFullPath = "";
 
                     if (GraphicsConfig.EnableTextureRecompression) {
 
                         String textureCachePath = Path.Combine(AppDataManager.BaseDirPath, "texture_cache");
+                        textureCacheFullPath = Path.Combine(textureCachePath, GraphicsConfig.TitleId+".zip");
+                        //GraphicsConfig.TitleId
 
-                        if (!string.IsNullOrEmpty(textureCachePath))
-                        {
-                            textureCachePath = Path.Combine(textureCachePath, GraphicsConfig.TitleId);
+                        if(!File.Exists(textureCacheFullPath)) {
+                            Logger.Error?.Print(LogClass.Gpu, "Create new ZipFile with id " + GraphicsConfig.TitleId);
+                            var newZip = File.Create(textureCacheFullPath);
+                            newZip.Write([0x50, 0x4B, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+                            newZip.Close();
                         }
-                        if(!Directory.Exists(textureCachePath)) Directory.CreateDirectory(textureCachePath);
 
                         Hash128 hash = XXHash128.ComputeHash(data);
                         textureHash = $"{hash.High:x16}{hash.Low:x16}";
-                        textureFileNoCompression = Path.Combine(textureCachePath, textureHash + ".tex");
-                        textureFileCompression = Path.Combine(textureCachePath, textureHash + ".lz4");
 
-                        if (File.Exists(textureFileNoCompression)) {
-                                return MemoryOwner<byte>.RentCopy(File.ReadAllBytes(textureFileNoCompression));
-                        } 
-                        if (File.Exists(textureFileCompression)) {
-                            using MemoryStream output = new MemoryStream();
-                            using (var dstream = LZ4Stream.Decode(File.OpenRead(textureFileCompression)))
-                            {
-                                dstream.CopyTo(output);
-                            }
+                        using ZipArchive textureCacheZip = ZipFile.Open(textureCacheFullPath, ZipArchiveMode.Read);
+
+                        ZipArchiveEntry zipEntry = textureCacheZip.GetEntry(textureHash);
+
+                        if (zipEntry != null)
+                        {
+                            MemoryStream output = new MemoryStream();
+                            zipEntry.Open().CopyTo(output);
                             return MemoryOwner<byte>.RentCopy(output.ToArray());
                         }
-                    
-                        sw = new Stopwatch();
-                        sw.Start();
                     }
 
                     if (!AstcDecoder.TryDecodeToRgba8P(
@@ -859,23 +856,15 @@ namespace Ryujinx.Graphics.Gpu.Image
                         {
                             MemoryOwner<byte> recompress = BCnEncoder.EncodeBC7(decoded.Memory, width, height, sliceDepth, levels, layers);
 
-                            sw.Stop();
-                            if(sw.ElapsedMilliseconds<10 || File.Exists(textureFileNoCompression) || File.Exists(textureFileCompression)) return recompress;
+                            using ZipArchive textureCacheZip = ZipFile.Open(textureCacheFullPath, ZipArchiveMode.Update);
 
-                            // Compress to LZ4
-                            byte[] recompArray = recompress.Memory.ToArray();
-                            using var output = new MemoryStream();
-                            using var compressor = LZ4Stream.Encode(output, K4os.Compression.LZ4.LZ4Level.L09_HC);
-                            compressor.Write(recompArray, 0, recompArray.Length);
-                            compressor.Close();
-                            byte[] outArray = output.ToArray();
-                            
-                            if(outArray.Length*2 < recompArray.Length) { //If compresses more than 2x the original size
-                                File.WriteAllBytes(textureFileCompression, outArray);
-                                Logger.Info?.Print(LogClass.Gpu, "Saved to disk texture with id " + textureHash + ".lz4" + $" Time to recompress: {sw.ElapsedMilliseconds}. Size original: {recompArray.Length}. Size compressed: {outArray.Length}");
-                            } else {
-                                File.WriteAllBytes(textureFileNoCompression, recompArray);
-                                Logger.Info?.Print(LogClass.Gpu, "Saved to disk texture with id " + textureHash + ".tex" + $" Time to recompress: {sw.ElapsedMilliseconds}. Size original: {recompArray.Length}. Size compressed: {outArray.Length}");
+                            if(textureCacheZip.GetEntry(textureHash)!=null) return recompress;
+
+                            // Save to zip
+                            ZipArchiveEntry readmeEntry = textureCacheZip.CreateEntry(textureHash, CompressionLevel.Optimal);
+                            using (StreamWriter writer = new StreamWriter(readmeEntry.Open()))
+                            {
+                                writer.BaseStream.Write(recompress.Memory.ToArray(), 0, recompress.Memory.ToArray().Length);
                             }
 
                             return recompress;
