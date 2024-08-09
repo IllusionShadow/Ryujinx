@@ -822,16 +822,18 @@ namespace Ryujinx.Graphics.Gpu.Image
                         Hash128 hash = XXHash128.ComputeHash(data);
                         textureHash = $"{hash.High:x16}{hash.Low:x16}";
 
-                        using ZipArchive textureCacheZip = ZipFile.Open(textureCacheFullPath, ZipArchiveMode.Read);
+                        try {
+                            using ZipArchive textureCacheZip = ZipFile.Open(textureCacheFullPath, ZipArchiveMode.Read);
 
-                        ZipArchiveEntry zipEntry = textureCacheZip.GetEntry(textureHash);
+                            ZipArchiveEntry zipEntry = textureCacheZip.GetEntry(textureHash);
 
-                        if (zipEntry != null)
-                        {
-                            MemoryStream output = new MemoryStream();
-                            zipEntry.Open().CopyTo(output);
-                            return MemoryOwner<byte>.RentCopy(output.ToArray());
-                        }
+                            if (zipEntry != null)
+                            {
+                                MemoryStream output = new MemoryStream();
+                                zipEntry.Open().CopyTo(output);
+                                return MemoryOwner<byte>.RentCopy(output.ToArray());
+                            }
+                        } catch {}
                     }
 
                     if (!AstcDecoder.TryDecodeToRgba8P(
@@ -856,16 +858,18 @@ namespace Ryujinx.Graphics.Gpu.Image
                         {
                             MemoryOwner<byte> recompress = BCnEncoder.EncodeBC7(decoded.Memory, width, height, sliceDepth, levels, layers);
 
-                            using ZipArchive textureCacheZip = ZipFile.Open(textureCacheFullPath, ZipArchiveMode.Update);
+                            try {
+                                using ZipArchive textureCacheZip = ZipFile.Open(textureCacheFullPath, ZipArchiveMode.Update);
 
-                            if(textureCacheZip.GetEntry(textureHash)!=null) return recompress;
+                                if(textureCacheZip.GetEntry(textureHash)!=null) return recompress;
 
-                            // Save to zip
-                            ZipArchiveEntry readmeEntry = textureCacheZip.CreateEntry(textureHash, CompressionLevel.Optimal);
-                            using (StreamWriter writer = new StreamWriter(readmeEntry.Open()))
-                            {
-                                writer.BaseStream.Write(recompress.Memory.ToArray(), 0, recompress.Memory.ToArray().Length);
-                            }
+                                // Save to zip
+                                ZipArchiveEntry readmeEntry = textureCacheZip.CreateEntry(textureHash, CompressionLevel.Fastest);
+                                using (StreamWriter writer = new StreamWriter(readmeEntry.Open()))
+                                {
+                                    writer.BaseStream.Write(recompress.Memory.ToArray(), 0, recompress.Memory.ToArray().Length);
+                                }
+                            } catch {}
 
                             return recompress;
                         }

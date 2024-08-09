@@ -299,7 +299,7 @@ namespace Ryujinx.Ava.UI.Controls
 
             if (viewModel?.SelectedApplication != null)
             {
-                string textureCacheDir = Path.Combine(AppDataManager.BaseDirPath, "texture_cache", viewModel.SelectedApplication.IdString);
+                string textureCacheDir = Path.Combine(AppDataManager.BaseDirPath, "texture_cache");
 
                 if (!Directory.Exists(textureCacheDir))
                 {
