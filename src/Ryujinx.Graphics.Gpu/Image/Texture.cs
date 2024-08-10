@@ -17,6 +17,8 @@ using System.Linq;
 using System.Numerics;
 using System.IO;
 using System.IO.Compression;
+using System.Threading;
+using System.CodeDom;
 
 namespace Ryujinx.Graphics.Gpu.Image
 {
@@ -746,6 +748,38 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// <param name="single">True to convert a single slice</param>
         /// <returns>Converted data</returns>
 
+        public static Thread saveToZip = new Thread(() => {
+            String textureCachePath = Path.Combine(AppDataManager.BaseDirPath, "texture_cache");
+            String textureCacheZipFullPath = Path.Combine(textureCachePath, GraphicsConfig.TitleId+".zip");
+            String textureCacheFolderFullPath = Path.Combine(textureCachePath, GraphicsConfig.TitleId);
+            while(true) {
+                Thread.Sleep(10000);
+                Logger.Warning?.Print(LogClass.Gpu, "Iteración de Thread de zip");
+                try{
+                    var textureFiles = Directory.EnumerateFiles(textureCacheFolderFullPath);
+                    if(!textureFiles.Any()){
+                        Directory.Delete(textureCacheFolderFullPath);
+                        break;
+                    } 
+                    Logger.Warning?.Print(LogClass.Gpu, $"Arxivos a comprimir {textureFiles.Count()}");
+                    using ZipArchive textureCacheZip = ZipFile.Open(textureCacheZipFullPath, ZipArchiveMode.Update);
+                    foreach(String textureFile in textureFiles) {
+                        String textureName = Path.GetFileName(textureFile);
+                        if(textureCacheZip.GetEntry(textureName)!=null || !File.Exists(textureFile)) continue;
+
+                        ZipArchiveEntry readmeEntry = textureCacheZip.CreateEntry(textureName, CompressionLevel.Fastest);
+                        using (StreamWriter writer = new StreamWriter(readmeEntry.Open()))
+                        {
+                            byte[] file = File.ReadAllBytes(Path.Combine(textureCacheFolderFullPath, textureName));
+                            writer.BaseStream.Write(file, 0, file.Length);
+                        }
+                        File.Delete(textureFile);
+                    }
+                    textureCacheZip.Dispose();
+                } catch {}
+            }
+        });
+
         public IMemoryOwner<byte> ConvertToHostCompatibleFormat(ReadOnlySpan<byte> data, int level = 0, bool single = false)
         {
             int width = Info.Width;
@@ -804,17 +838,20 @@ namespace Ryujinx.Graphics.Gpu.Image
                 using (result)
                 {
                     String textureHash = "";
-                    String textureCacheFullPath = "";
+                    String textureCacheZipFullPath = "";
+                    String textureCacheFolderFullPath = "";
+                    bool fromCrash = false;
 
                     if (GraphicsConfig.EnableTextureRecompression) {
 
                         String textureCachePath = Path.Combine(AppDataManager.BaseDirPath, "texture_cache");
-                        textureCacheFullPath = Path.Combine(textureCachePath, GraphicsConfig.TitleId+".zip");
+                        textureCacheZipFullPath = Path.Combine(textureCachePath, GraphicsConfig.TitleId+".zip");
+                        textureCacheFolderFullPath = Path.Combine(textureCachePath, GraphicsConfig.TitleId);
                         //GraphicsConfig.TitleId
 
-                        if(!File.Exists(textureCacheFullPath)) {
+                        if(!File.Exists(textureCacheZipFullPath)) {
                             Logger.Error?.Print(LogClass.Gpu, "Create new ZipFile with id " + GraphicsConfig.TitleId);
-                            var newZip = File.Create(textureCacheFullPath);
+                            var newZip = File.Create(textureCacheZipFullPath);
                             newZip.Write([0x50, 0x4B, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
                             newZip.Close();
                         }
@@ -823,7 +860,16 @@ namespace Ryujinx.Graphics.Gpu.Image
                         textureHash = $"{hash.High:x16}{hash.Low:x16}";
 
                         try {
-                            using ZipArchive textureCacheZip = ZipFile.Open(textureCacheFullPath, ZipArchiveMode.Read);
+                            if(File.Exists(Path.Combine(textureCacheFolderFullPath, textureHash))) {
+                                long currentTime = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
+
+                                if(!saveToZip.IsAlive){
+                                    saveToZip.Start();
+                                }
+                                return MemoryOwner<byte>.RentCopy(File.ReadAllBytes(Path.Combine(textureCacheFolderFullPath, textureHash)));
+                            }
+
+                            using ZipArchive textureCacheZip = ZipFile.Open(textureCacheZipFullPath, ZipArchiveMode.Read);
 
                             ZipArchiveEntry zipEntry = textureCacheZip.GetEntry(textureHash);
 
@@ -833,7 +879,7 @@ namespace Ryujinx.Graphics.Gpu.Image
                                 zipEntry.Open().CopyTo(output);
                                 return MemoryOwner<byte>.RentCopy(output.ToArray());
                             }
-                        } catch {}
+                        } catch { fromCrash = true; }
                     }
 
                     if (!AstcDecoder.TryDecodeToRgba8P(
@@ -859,15 +905,19 @@ namespace Ryujinx.Graphics.Gpu.Image
                             MemoryOwner<byte> recompress = BCnEncoder.EncodeBC7(decoded.Memory, width, height, sliceDepth, levels, layers);
 
                             try {
-                                using ZipArchive textureCacheZip = ZipFile.Open(textureCacheFullPath, ZipArchiveMode.Update);
+                                if(fromCrash) {
+                                    using ZipArchive textureCacheZip = ZipFile.Open(textureCacheZipFullPath, ZipArchiveMode.Read);
+                                    if(textureCacheZip.GetEntry(textureHash)!=null || File.Exists(Path.Combine(textureCacheFolderFullPath, textureHash))) return recompress;
+                                }
 
-                                if(textureCacheZip.GetEntry(textureHash)!=null) return recompress;
+                                if(!Directory.Exists(textureCacheFolderFullPath)){
+                                    Directory.CreateDirectory(textureCacheFolderFullPath);
+                                }
 
-                                // Save to zip
-                                ZipArchiveEntry readmeEntry = textureCacheZip.CreateEntry(textureHash, CompressionLevel.Fastest);
-                                using (StreamWriter writer = new StreamWriter(readmeEntry.Open()))
-                                {
-                                    writer.BaseStream.Write(recompress.Memory.ToArray(), 0, recompress.Memory.ToArray().Length);
+                                File.WriteAllBytesAsync(Path.Combine(textureCacheFolderFullPath, textureHash), recompress.Memory.ToArray());
+
+                                if(!saveToZip.IsAlive){
+                                    saveToZip.Start();
                                 }
                             } catch {}
 
