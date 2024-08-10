@@ -1,4 +1,3 @@
-using K4os.Compression.LZ4.Streams;
 using Ryujinx.Common;
 using Ryujinx.Common.Configuration;
 using Ryujinx.Common.Logging;
@@ -18,7 +17,6 @@ using System.Numerics;
 using System.IO;
 using System.IO.Compression;
 using System.Threading;
-using System.CodeDom;
 
 namespace Ryujinx.Graphics.Gpu.Image
 {
@@ -747,8 +745,8 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// <param name="level">Mip level to convert</param>
         /// <param name="single">True to convert a single slice</param>
         /// <returns>Converted data</returns>
-
-        public static Thread saveToZip = new Thread(() => {
+        
+        private void SaveToZip() {
             String textureCachePath = Path.Combine(AppDataManager.BaseDirPath, "texture_cache");
             String textureCacheZipFullPath = Path.Combine(textureCachePath, GraphicsConfig.TitleId+".zip");
             String textureCacheFolderFullPath = Path.Combine(textureCachePath, GraphicsConfig.TitleId);
@@ -759,7 +757,7 @@ namespace Ryujinx.Graphics.Gpu.Image
                     var textureFiles = Directory.EnumerateFiles(textureCacheFolderFullPath);
                     if(!textureFiles.Any()){
                         Directory.Delete(textureCacheFolderFullPath);
-                        break;
+                        return;
                     } 
                     Logger.Warning?.Print(LogClass.Gpu, $"Arxivos a comprimir {textureFiles.Count()}");
                     using ZipArchive textureCacheZip = ZipFile.Open(textureCacheZipFullPath, ZipArchiveMode.Update);
@@ -778,7 +776,9 @@ namespace Ryujinx.Graphics.Gpu.Image
                     textureCacheZip.Dispose();
                 } catch {}
             }
-        });
+        }
+
+        private static Thread saveToZip = null;
 
         public IMemoryOwner<byte> ConvertToHostCompatibleFormat(ReadOnlySpan<byte> data, int level = 0, bool single = false)
         {
@@ -863,7 +863,8 @@ namespace Ryujinx.Graphics.Gpu.Image
                             if(File.Exists(Path.Combine(textureCacheFolderFullPath, textureHash))) {
                                 long currentTime = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 
-                                if(!saveToZip.IsAlive){
+                                if(saveToZip==null || !saveToZip.IsAlive){
+                                    saveToZip = new Thread(SaveToZip);
                                     saveToZip.Start();
                                 }
                                 return MemoryOwner<byte>.RentCopy(File.ReadAllBytes(Path.Combine(textureCacheFolderFullPath, textureHash)));
@@ -916,7 +917,8 @@ namespace Ryujinx.Graphics.Gpu.Image
 
                                 File.WriteAllBytesAsync(Path.Combine(textureCacheFolderFullPath, textureHash), recompress.Memory.ToArray());
 
-                                if(!saveToZip.IsAlive){
+                                if(saveToZip==null || !saveToZip.IsAlive){
+                                    saveToZip = new Thread(SaveToZip);
                                     saveToZip.Start();
                                 }
                             } catch {}
