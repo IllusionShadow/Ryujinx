@@ -12,6 +12,7 @@
     <ProjectReference Include="..\Ryujinx.Common\Ryujinx.Common.csproj" />
     <ProjectReference Include="..\Ryujinx.Graphics.Texture\Ryujinx.Graphics.Texture.csproj" />
     <ProjectReference Include="..\Ryujinx.Graphics.Shader\Ryujinx.Graphics.Shader.csproj" />
+    <PackageReference Include="K4os.Compression.LZ4.Streams" />
   </ItemGroup>
 
 </Project>

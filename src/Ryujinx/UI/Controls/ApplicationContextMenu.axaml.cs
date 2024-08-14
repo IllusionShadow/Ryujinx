@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using K4os.Compression.LZ4.Streams;
 using LibHac.Fs;
 using LibHac.Tools.FsSystem.NcaUtils;
 using Ryujinx.Ava.Common;
@@ -9,12 +10,15 @@ using Ryujinx.Ava.UI.Helpers;
 using Ryujinx.Ava.UI.ViewModels;
 using Ryujinx.Ava.UI.Windows;
 using Ryujinx.Common.Configuration;
+using Ryujinx.Common.Logging;
 using Ryujinx.HLE.HOS;
 using Ryujinx.UI.App.Common;
 using Ryujinx.UI.Common.Helper;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
+using System.Linq;
 using Path = System.IO.Path;
 
 namespace Ryujinx.Ava.UI.Controls
@@ -307,6 +311,55 @@ namespace Ryujinx.Ava.UI.Controls
                 }
 
                 OpenHelper.OpenFolder(textureCacheDir);
+            }
+        }
+
+        public void SaveTextureZipCacheDirectory_Click(object sender, RoutedEventArgs args)
+        {
+            var viewModel = (sender as MenuItem)?.DataContext as MainWindowViewModel;
+
+            if (viewModel?.SelectedApplication != null)
+            {
+                string textureCacheDir = Path.Combine(AppDataManager.BaseDirPath, "texture_cache", viewModel.SelectedApplication.IdString);
+
+                if (!Directory.Exists(textureCacheDir))
+                {
+                    return;
+                }
+
+                String textureCachePath = Path.Combine(AppDataManager.BaseDirPath, "texture_cache");
+                String textureCacheZipFullPath = Path.Combine(textureCachePath, viewModel.SelectedApplication.IdString+".zip");
+                String textureCacheFolderFullPath = Path.Combine(textureCachePath, viewModel.SelectedApplication.IdString);
+                var textureFiles = Directory.EnumerateFiles(textureCacheFolderFullPath);
+                if(!textureFiles.Any()) {
+                    Directory.Delete(textureCacheDir);
+                    return;
+                }
+                Logger.Warning?.Print(LogClass.Gpu, $"Comprimiendo a zip");
+                ZipArchive _zipArchive = ZipFile.Open(textureCacheZipFullPath, ZipArchiveMode.Update);
+                foreach(String textureFile in textureFiles) {
+                    String textureName = Path.GetFileName(textureFile);
+                    if(_zipArchive.GetEntry(textureName)!=null || !File.Exists(textureFile)) continue;
+
+                    using MemoryStream compressed = new();
+                    using var source = File.OpenRead(Path.Combine(textureCacheFolderFullPath, textureName));
+                    using (var target = LZ4Stream.Encode(compressed, K4os.Compression.LZ4.LZ4Level.L09_HC))
+                    {
+                        source.CopyTo(target);
+                    }
+                    source.Dispose();
+                    byte[] file = compressed.ToArray();
+
+                    ZipArchiveEntry readmeEntry = _zipArchive.CreateEntry(textureName, CompressionLevel.NoCompression);
+                    using (StreamWriter writer = new StreamWriter(readmeEntry.Open()))
+                    {
+                        writer.BaseStream.Write(file, 0, file.Length);
+                    }
+                    File.Delete(textureFile);
+                }
+                _zipArchive.Dispose();
+                Directory.Delete(textureCacheDir);
+                Logger.Warning?.Print(LogClass.Gpu, $"Fin de comprimiendo a zip");
             }
         }
 

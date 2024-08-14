@@ -72,6 +72,8 @@
   "GameListContextMenuCacheManagementOpenShaderCacheDirectoryToolTip": "Opens the directory which contains Application's shader cache",
   "GameListContextMenuCacheManagementOpenTextureCacheDirectory": "Open Texture Cache Directory",
   "GameListContextMenuCacheManagementOpenTextureCacheDirectoryToolTip": "Opens the directory which contains Application's texture cache",
+  "GameListContextMenuCacheManagementSaveZipTextureCacheDirectory": "Save Textures decompressed to Zip",
+  "GameListContextMenuCacheManagementSaveZipTextureCacheDirectoryToolTip": "Saves the uncompressed textures to a Zip File",
   "GameListContextMenuExtractData": "Extract Data",
   "GameListContextMenuExtractDataExeFS": "ExeFS",
   "GameListContextMenuExtractDataExeFSToolTip": "Extract the ExeFS section from Application's current config (including updates)",
