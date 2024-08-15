@@ -335,6 +335,12 @@ namespace Ryujinx.Ava.UI.Controls
                     Directory.Delete(textureCacheDir);
                     return;
                 }
+                if(!File.Exists(textureCacheZipFullPath)) {
+                    Logger.Error?.Print(LogClass.Gpu, "Create new ZipFile with id " + viewModel.SelectedApplication.IdString);
+                    var newZip = File.Create(textureCacheZipFullPath);
+                    newZip.Write([0x50, 0x4B, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+                    newZip.Close();
+                }
                 Logger.Warning?.Print(LogClass.Gpu, $"Comprimiendo a zip");
                 ZipArchive _zipArchive = ZipFile.Open(textureCacheZipFullPath, ZipArchiveMode.Update);
                 foreach(String textureFile in textureFiles) {
