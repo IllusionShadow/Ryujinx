@@ -1,4 +1,3 @@
-using K4os.Compression.LZ4.Streams;
 using Ryujinx.Common;
 using Ryujinx.Common.Configuration;
 using Ryujinx.Common.Logging;
@@ -16,8 +15,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.IO;
-using System.IO.Compression;
 using System.Threading;
+using K4os.Compression.LZ4;
 
 namespace Ryujinx.Graphics.Gpu.Image
 {
@@ -818,11 +817,12 @@ namespace Ryujinx.Graphics.Gpu.Image
 
                         try {
                             if(File.Exists(Path.Combine(textureCacheFolderFullPath, textureHash))) {
-                                using var source = LZ4Stream.Decode(File.OpenRead(Path.Combine(textureCacheFolderFullPath, textureHash)));
-                                using var target = new MemoryStream();
-                                source.CopyTo(target);
+                                byte[] uncompressed = LZ4Pickler.Unpickle(File.ReadAllBytes(Path.Combine(textureCacheFolderFullPath, textureHash)));
 
-                                return MemoryOwner<byte>.RentCopy(target.ToArray());
+                                if(uncompressed.Length>0) 
+                                {
+                                    return MemoryOwner<byte>.RentCopy(uncompressed);
+                                }
                             }
                         } catch { fromCrash = true; }
                     }
@@ -855,17 +855,17 @@ namespace Ryujinx.Graphics.Gpu.Image
                                 Directory.CreateDirectory(textureCacheFolderFullPath);
                             }
 
-                            byte[] texture = recompress.Memory.ToArray();
+                            byte[] source = recompress.Memory.ToArray();
 
                             new Thread(() => {
-                                using MemoryStream source = new MemoryStream(texture);
-                                using MemoryStream compressed = new();
-                                using (var target = LZ4Stream.Encode(compressed, K4os.Compression.LZ4.LZ4Level.L09_HC))
-                                {
-                                    source.CopyTo(target);
+                                var encoded = LZ4Pickler.Pickle(source, LZ4Level.L09_HC);
+
+                                if(encoded.Length<=0) {
+                                    Logger.Error?.Print(LogClass.Gpu, $"Error al comprimir {textureHash}");
+                                    return;
                                 }
 
-                                File.WriteAllBytes(Path.Combine(textureCacheFolderFullPath, textureHash), compressed.ToArray());
+                                File.WriteAllBytesAsync(Path.Combine(textureCacheFolderFullPath, textureHash), encoded);
                             }).Start();
 
                             return recompress;

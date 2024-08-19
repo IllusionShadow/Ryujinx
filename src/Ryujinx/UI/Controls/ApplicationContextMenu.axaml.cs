@@ -1,7 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
-using K4os.Compression.LZ4.Streams;
 using LibHac.Fs;
 using LibHac.Tools.FsSystem.NcaUtils;
 using Ryujinx.Ava.Common;
@@ -10,15 +9,12 @@ using Ryujinx.Ava.UI.Helpers;
 using Ryujinx.Ava.UI.ViewModels;
 using Ryujinx.Ava.UI.Windows;
 using Ryujinx.Common.Configuration;
-using Ryujinx.Common.Logging;
 using Ryujinx.HLE.HOS;
 using Ryujinx.UI.App.Common;
 using Ryujinx.UI.Common.Helper;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
-using System.Linq;
 using Path = System.IO.Path;
 
 namespace Ryujinx.Ava.UI.Controls
