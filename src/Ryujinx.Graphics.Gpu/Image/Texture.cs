@@ -746,7 +746,6 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// <param name="level">Mip level to convert</param>
         /// <param name="single">True to convert a single slice</param>
         /// <returns>Converted data</returns>
-        private static ZipArchive _zipArchive = null;
 
         public IMemoryOwner<byte> ConvertToHostCompatibleFormat(ReadOnlySpan<byte> data, int level = 0, bool single = false)
         {
@@ -807,12 +806,11 @@ namespace Ryujinx.Graphics.Gpu.Image
                 {
                     String textureHash = "";
                     String textureCacheFolderFullPath = "";
-                    Stopwatch stopwatch = new Stopwatch();
+                    bool fromCrash = false;
 
                     if (GraphicsConfig.EnableTextureRecompression) {
 
                         String textureCachePath = Path.Combine(AppDataManager.BaseDirPath, "texture_cache");
-                        String textureCacheZipFullPath = Path.Combine(textureCachePath, GraphicsConfig.TitleId+".zip");
                         textureCacheFolderFullPath = Path.Combine(textureCachePath, GraphicsConfig.TitleId);
 
                         Hash128 hash = XXHash128.ComputeHash(data);
@@ -820,27 +818,14 @@ namespace Ryujinx.Graphics.Gpu.Image
 
                         try {
                             if(File.Exists(Path.Combine(textureCacheFolderFullPath, textureHash))) {
-                                return MemoryOwner<byte>.RentCopy(File.ReadAllBytes(Path.Combine(textureCacheFolderFullPath, textureHash)));
-                            }
-                            
-                            if(File.Exists(textureCacheZipFullPath)){
-                                _zipArchive ??= ZipFile.Open(textureCacheZipFullPath, ZipArchiveMode.Read);
+                                using var source = LZ4Stream.Decode(File.OpenRead(Path.Combine(textureCacheFolderFullPath, textureHash)));
+                                using var target = new MemoryStream();
+                                source.CopyTo(target);
 
-                                ZipArchiveEntry zipEntry = _zipArchive.GetEntry(textureHash);
-
-                                if (zipEntry != null)
-                                {
-                                    using (var source = LZ4Stream.Decode(zipEntry.Open()))
-                                    using (var target = new MemoryStream())
-                                    {
-                                        source.CopyTo(target);
-                                        return MemoryOwner<byte>.RentCopy(target.ToArray());
-                                    }
-                                }
+                                return MemoryOwner<byte>.RentCopy(target.ToArray());
                             }
-                        } catch {}
+                        } catch { fromCrash = true; }
                     }
-                    stopwatch.Start();
 
                     if (!AstcDecoder.TryDecodeToRgba8P(
                         result.Memory,
@@ -864,17 +849,24 @@ namespace Ryujinx.Graphics.Gpu.Image
                         {
                             MemoryOwner<byte> recompress = BCnEncoder.EncodeBC7(decoded.Memory, width, height, sliceDepth, levels, layers);
 
-                            stopwatch.Stop();
-
-                            if(stopwatch.ElapsedMilliseconds<10) {
-                                return recompress;
-                            }
+                            if(fromCrash) return recompress;
 
                             if(!Directory.Exists(textureCacheFolderFullPath)){
                                 Directory.CreateDirectory(textureCacheFolderFullPath);
                             }
 
-                            File.WriteAllBytes(Path.Combine(textureCacheFolderFullPath, textureHash), recompress.Memory.ToArray());
+                            byte[] texture = recompress.Memory.ToArray();
+
+                            new Thread(() => {
+                                using MemoryStream source = new MemoryStream(texture);
+                                using MemoryStream compressed = new();
+                                using (var target = LZ4Stream.Encode(compressed, K4os.Compression.LZ4.LZ4Level.L09_HC))
+                                {
+                                    source.CopyTo(target);
+                                }
+
+                                File.WriteAllBytes(Path.Combine(textureCacheFolderFullPath, textureHash), compressed.ToArray());
+                            }).Start();
 
                             return recompress;
                         }

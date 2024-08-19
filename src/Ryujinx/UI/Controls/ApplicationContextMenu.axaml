@@ -82,10 +82,6 @@
             Click="OpenTextureCacheDirectory_Click"
             Header="{locale:Locale GameListContextMenuCacheManagementOpenTextureCacheDirectory}"
             ToolTip.Tip="{locale:Locale GameListContextMenuCacheManagementOpenTextureCacheDirectoryToolTip}" />
-        <MenuItem
-            Click="SaveTextureZipCacheDirectory_Click"
-            Header="{locale:Locale GameListContextMenuCacheManagementSaveZipTextureCacheDirectory}"
-            ToolTip.Tip="{locale:Locale GameListContextMenuCacheManagementSaveZipTextureCacheDirectoryToolTip}" />
     </MenuItem>
     <MenuItem Header="{locale:Locale GameListContextMenuExtractData}">
         <MenuItem
