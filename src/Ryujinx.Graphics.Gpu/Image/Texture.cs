@@ -15,8 +15,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.IO;
-using System.Threading;
-using K4os.Compression.LZ4;
 
 namespace Ryujinx.Graphics.Gpu.Image
 {
@@ -817,12 +815,7 @@ namespace Ryujinx.Graphics.Gpu.Image
 
                         try {
                             if(File.Exists(Path.Combine(textureCacheFolderFullPath, textureHash))) {
-                                byte[] uncompressed = LZ4Pickler.Unpickle(File.ReadAllBytes(Path.Combine(textureCacheFolderFullPath, textureHash)));
-
-                                if(uncompressed.Length>0) 
-                                {
-                                    return MemoryOwner<byte>.RentCopy(uncompressed);
-                                }
+                                return MemoryOwner<byte>.RentCopy(File.ReadAllBytes(Path.Combine(textureCacheFolderFullPath, textureHash)));
                             }
                         } catch { fromCrash = true; }
                     }
@@ -849,24 +842,13 @@ namespace Ryujinx.Graphics.Gpu.Image
                         {
                             MemoryOwner<byte> recompress = BCnEncoder.EncodeBC7(decoded.Memory, width, height, sliceDepth, levels, layers);
 
-                            if(fromCrash) return recompress;
+                            if(fromCrash || data.Length<100000) return recompress;
 
                             if(!Directory.Exists(textureCacheFolderFullPath)){
                                 Directory.CreateDirectory(textureCacheFolderFullPath);
                             }
 
-                            byte[] source = recompress.Memory.ToArray();
-
-                            new Thread(() => {
-                                var encoded = LZ4Pickler.Pickle(source, LZ4Level.L09_HC);
-
-                                if(encoded.Length<=0) {
-                                    Logger.Error?.Print(LogClass.Gpu, $"Error al comprimir {textureHash}");
-                                    return;
-                                }
-
-                                File.WriteAllBytesAsync(Path.Combine(textureCacheFolderFullPath, textureHash), encoded);
-                            }).Start();
+                            File.WriteAllBytesAsync(Path.Combine(textureCacheFolderFullPath, textureHash), recompress.Memory.ToArray());
 
                             return recompress;
                         }
