@@ -735,6 +735,8 @@ namespace Ryujinx.Graphics.Gpu.Image
             _hasData = true;
         }
 
+        private static DiskTextureCache _diskTextureCache = null;
+
         /// <summary>
         /// Converts texture data to a format and layout that is supported by the host GPU.
         /// </summary>
@@ -811,9 +813,18 @@ namespace Ryujinx.Graphics.Gpu.Image
                         Hash128 hash = XXHash128.ComputeHash(data);
                         textureHash = $"{hash.High:x16}{hash.Low:x16}";
 
+                        _diskTextureCache ??= new DiskTextureCache(textureCacheFolderFullPath); 
+                        if(_diskTextureCache.IsTextureInCache(textureHash)) 
+                        {
+                            _diskTextureCache.Lift(textureHash);
+                            return MemoryOwner<byte>.RentCopy(_diskTextureCache.GetTexture(textureHash));
+                        }
+
                         try {
                             if(File.Exists(Path.Combine(textureCacheFolderFullPath, textureHash))) {
-                                return MemoryOwner<byte>.RentCopy(File.ReadAllBytes(Path.Combine(textureCacheFolderFullPath, textureHash)));
+                                byte[] cacheFile = File.ReadAllBytes(Path.Combine(textureCacheFolderFullPath, textureHash));
+                                _diskTextureCache.Add(textureHash, cacheFile);
+                                return MemoryOwner<byte>.RentCopy(cacheFile);
                             }
                         } catch { fromCrash = true; }
                     }
