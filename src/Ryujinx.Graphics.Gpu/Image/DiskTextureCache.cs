@@ -1,10 +1,11 @@
-using System.Collections;
+using Ryujinx.Common.Logging;
+using Ryujinx.Common.Memory;
 using System.Collections.Generic;
 using System.IO;
 
 namespace Ryujinx.Graphics.Gpu.Image
 {
-    class DiskTextureCache 
+    public class DiskTextureCache 
     {
         private const long MaxTextureCacheCapacity = 1024 * 1024 * 1024; // 1 GB;
 
@@ -33,12 +34,16 @@ namespace Ryujinx.Graphics.Gpu.Image
         private void InitCache(string textureCacheFolder)
         {
 			if(!Directory.Exists(textureCacheFolder)) return;
+
+            Logger.Info?.Print(LogClass.Gpu, "Start of disk texture cache");
 			
             foreach(string file in Directory.GetFiles(textureCacheFolder))
             {
                 Add(Path.GetFileNameWithoutExtension(file), File.ReadAllBytes(file));
                 if(_totalSize+(10 * 1024 * 1024) > MaxTextureCacheCapacity) return;
             }
+
+            Logger.Info?.Print(LogClass.Gpu, "End of disk texture cache. Total Cache: " + _totalSize);
         } 
 
         public void Add(string textureId, byte[] texture) 
@@ -70,10 +75,18 @@ namespace Ryujinx.Graphics.Gpu.Image
             return false;
         }
 
-        public byte[] GetTexture(string textureId)
+        public MemoryOwner<byte> GetTexture(string textureId)
         {
-            if(!_diskTextureCache.ContainsKey(textureId)) return [];
-            return _diskTextureCache[textureId];
+            if(!_diskTextureCache.ContainsKey(textureId)) return null;
+            return MemoryOwner<byte>.RentCopy(_diskTextureCache[textureId]);
+        }
+
+        public void Clear()
+        {
+            Logger.Info?.Print(LogClass.Gpu, "Clearing the disk texture cache");
+            _diskTextureCache?.Clear();
+            _timeTextureCache?.Clear();
+            _totalSize = 0;
         }
 
     }

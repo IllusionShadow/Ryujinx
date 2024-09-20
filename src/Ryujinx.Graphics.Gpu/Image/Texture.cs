@@ -735,7 +735,8 @@ namespace Ryujinx.Graphics.Gpu.Image
             _hasData = true;
         }
 
-        private static DiskTextureCache _diskTextureCache = null;
+        private static string _lastTitleId = "";
+        private static string _textureCacheFolder = "";
 
         /// <summary>
         /// Converts texture data to a format and layout that is supported by the host GPU.
@@ -802,28 +803,28 @@ namespace Ryujinx.Graphics.Gpu.Image
                 using (result)
                 {
                     String textureHash = "";
-                    String textureCacheFolderFullPath = "";
                     bool fromCrash = false;
 
                     if (GraphicsConfig.EnableTextureRecompression) {
-
-                        String textureCachePath = Path.Combine(AppDataManager.BaseDirPath, "texture_cache");
-                        textureCacheFolderFullPath = Path.Combine(textureCachePath, GraphicsConfig.TitleId);
-
                         Hash128 hash = XXHash128.ComputeHash(data);
                         textureHash = $"{hash.High:x16}{hash.Low:x16}";
 
-                        _diskTextureCache ??= new DiskTextureCache(textureCacheFolderFullPath); 
-                        if(_diskTextureCache.IsTextureInCache(textureHash)) 
+                        if(_lastTitleId!=GraphicsConfig.TitleId){
+                            _textureCacheFolder = Path.Combine(AppDataManager.BaseDirPath, "texture_cache", GraphicsConfig.TitleId);
+                            _lastTitleId = GraphicsConfig.TitleId;
+                            GpuContext._diskTextureCache?.Clear();
+                            GpuContext._diskTextureCache = new DiskTextureCache(_textureCacheFolder); 
+                        }
+                        if(GpuContext._diskTextureCache.IsTextureInCache(textureHash)) 
                         {
-                            _diskTextureCache.Lift(textureHash);
-                            return MemoryOwner<byte>.RentCopy(_diskTextureCache.GetTexture(textureHash));
+                            GpuContext._diskTextureCache.Lift(textureHash);
+                            return GpuContext._diskTextureCache.GetTexture(textureHash);
                         }
 
                         try {
-                            if(File.Exists(Path.Combine(textureCacheFolderFullPath, textureHash))) {
-                                byte[] cacheFile = File.ReadAllBytes(Path.Combine(textureCacheFolderFullPath, textureHash));
-                                _diskTextureCache.Add(textureHash, cacheFile);
+                            if(File.Exists(Path.Combine(_textureCacheFolder, textureHash))) {
+                                byte[] cacheFile = File.ReadAllBytes(Path.Combine(_textureCacheFolder, textureHash));
+                                GpuContext._diskTextureCache.Add(textureHash, cacheFile);
                                 return MemoryOwner<byte>.RentCopy(cacheFile);
                             }
                         } catch { fromCrash = true; }
@@ -853,11 +854,11 @@ namespace Ryujinx.Graphics.Gpu.Image
 
                             if(fromCrash || data.Length<100000) return recompress;
 
-                            if(!Directory.Exists(textureCacheFolderFullPath)){
-                                Directory.CreateDirectory(textureCacheFolderFullPath);
+                            if(!Directory.Exists(_textureCacheFolder)){
+                                Directory.CreateDirectory(_textureCacheFolder);
                             }
 
-                            File.WriteAllBytesAsync(Path.Combine(textureCacheFolderFullPath, textureHash), recompress.Memory.ToArray());
+                            File.WriteAllBytesAsync(Path.Combine(_textureCacheFolder, textureHash), recompress.Memory.ToArray());
 
                             return recompress;
                         }

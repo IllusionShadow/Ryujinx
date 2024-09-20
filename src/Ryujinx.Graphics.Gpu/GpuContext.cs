@@ -2,6 +2,7 @@ using Ryujinx.Common;
 using Ryujinx.Graphics.Device;
 using Ryujinx.Graphics.GAL;
 using Ryujinx.Graphics.Gpu.Engine.GPFifo;
+using Ryujinx.Graphics.Gpu.Image;
 using Ryujinx.Graphics.Gpu.Memory;
 using Ryujinx.Graphics.Gpu.Shader;
 using Ryujinx.Graphics.Gpu.Synchronization;
@@ -108,6 +109,8 @@ namespace Ryujinx.Graphics.Gpu
         private readonly ulong _firstTimestamp;
 
         private readonly ManualResetEvent _gpuReadyEvent;
+
+        public static DiskTextureCache _diskTextureCache = null;
 
         /// <summary>
         /// Creates a new instance of the GPU emulation context.
@@ -449,6 +452,9 @@ namespace Ryujinx.Graphics.Gpu
             PhysicalMemoryRegistry.Clear();
 
             RunDeferredActions();
+
+            _diskTextureCache?.Clear();
+            _diskTextureCache = null;
 
             Renderer.Dispose();
         }
