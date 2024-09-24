@@ -14,4 +14,8 @@
     <ProjectReference Include="..\Ryujinx.Graphics.Shader\Ryujinx.Graphics.Shader.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="K4os.Compression.LZ4" />
+  </ItemGroup>
+
 </Project>

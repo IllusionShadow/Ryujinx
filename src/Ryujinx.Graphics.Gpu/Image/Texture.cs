@@ -14,6 +14,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.IO;
+using K4os.Compression.LZ4;
+using System.Threading.Tasks;
 
 namespace Ryujinx.Graphics.Gpu.Image
 {
@@ -802,12 +804,14 @@ namespace Ryujinx.Graphics.Gpu.Image
             {
                 using (result)
                 {
-                    String textureHash = "";
+                    string textureHash = "";
                     bool fromCrash = false;
+                    string textureFile = "";
 
                     if (GraphicsConfig.EnableTextureRecompression) {
                         Hash128 hash = XXHash128.ComputeHash(data);
                         textureHash = $"{hash.High:x16}{hash.Low:x16}";
+                        textureFile = Path.Combine(AppDataManager.BaseDirPath, "texture_cache", GraphicsConfig.TitleId, textureHash+".lz4");
 
                         if(_lastTitleId!=GraphicsConfig.TitleId){
                             _textureCacheFolder = Path.Combine(AppDataManager.BaseDirPath, "texture_cache", GraphicsConfig.TitleId);
@@ -822,8 +826,8 @@ namespace Ryujinx.Graphics.Gpu.Image
                         }
 
                         try {
-                            if(File.Exists(Path.Combine(_textureCacheFolder, textureHash))) {
-                                byte[] cacheFile = File.ReadAllBytes(Path.Combine(_textureCacheFolder, textureHash));
+                            if(File.Exists(textureFile)) {
+                                byte[] cacheFile = LZ4Pickler.Unpickle(File.ReadAllBytes(textureFile));
                                 GpuContext._diskTextureCache.Add(textureHash, cacheFile);
                                 return MemoryOwner<byte>.RentCopy(cacheFile);
                             }
@@ -852,13 +856,26 @@ namespace Ryujinx.Graphics.Gpu.Image
                         {
                             MemoryOwner<byte> recompress = BCnEncoder.EncodeBC7(decoded.Memory, width, height, sliceDepth, levels, layers);
 
-                            if(fromCrash || data.Length<100000) return recompress;
+                            if(fromCrash || data.Length<1000) return recompress;
 
                             if(!Directory.Exists(_textureCacheFolder)){
                                 Directory.CreateDirectory(_textureCacheFolder);
                             }
 
-                            File.WriteAllBytesAsync(Path.Combine(_textureCacheFolder, textureHash), recompress.Memory.ToArray());
+                            byte[] bytes = recompress.Memory.ToArray();
+                            new Task(() => {
+
+                                if(File.Exists(textureFile)) return;
+
+                                GpuContext._diskTextureCache.Add(textureHash, bytes);
+
+                                byte[] compressed = LZ4Pickler.Pickle(bytes, LZ4Level.L09_HC);
+
+                                File.WriteAllBytesAsync(textureFile, compressed);
+
+                            }).Start();
+
+                            
 
                             return recompress;
                         }

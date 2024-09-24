@@ -1,3 +1,4 @@
+using K4os.Compression.LZ4;
 using Ryujinx.Common.Logging;
 using Ryujinx.Common.Memory;
 using System.Collections.Generic;
@@ -31,11 +32,9 @@ namespace Ryujinx.Graphics.Gpu.Image
             _diskTextureCache = new Dictionary<string, byte[]>();
             _timeTextureCache = new LinkedList<string>();
             _totalSize = 0;
-            _loadingCache = true;
 
             new Task(() => { 
                 InitCache(textureCacheFolder);
-                _loadingCache = false;
             }).Start();
         }
 
@@ -47,16 +46,19 @@ namespace Ryujinx.Graphics.Gpu.Image
 			
             foreach(string file in Directory.GetFiles(textureCacheFolder))
             {
-                Add(Path.GetFileNameWithoutExtension(file), File.ReadAllBytes(file), true);
-                if(_totalSize+(10 * 1024 * 1024) > MaxTextureCacheCapacity) return;
+                if(Path.GetFileName(file).EndsWith(".lz4")) {
+                    Add(Path.GetFileNameWithoutExtension(file), LZ4Pickler.Unpickle(File.ReadAllBytes(file)));
+                    if(_totalSize+(10 * 1024 * 1024) > MaxTextureCacheCapacity) return;
+                }
             }
 
-            Logger.Warning?.Print(LogClass.Gpu, "End of disk texture cache. Total Cache: " + _totalSize);
+            Logger.Warning?.Print(LogClass.Gpu, "End of disk texture cache. Total Cache: " + System.Math.Truncate(_totalSize/1000000 * 1000m) / 1000m + " MiB");
         } 
 
-        public void Add(string textureId, byte[] texture, bool fromLoading = false) 
+        public void Add(string textureId, byte[] texture) 
         {
-            if(_loadingCache && !fromLoading) return;
+            if(_loadingCache) return;
+            _loadingCache = true;
             if(_diskTextureCache.ContainsKey(textureId) || texture==null || texture.Length==0) return;
 
             while(texture.Length+_totalSize > MaxTextureCacheCapacity)
@@ -70,6 +72,8 @@ namespace Ryujinx.Graphics.Gpu.Image
             _diskTextureCache.Add(textureId, texture);
             _timeTextureCache.AddLast(textureId);
             _totalSize += texture.Length;
+
+            _loadingCache = false;
         }
 
         public void Lift(string textureId)
