@@ -2,6 +2,7 @@ using Ryujinx.Common.Logging;
 using Ryujinx.Common.Memory;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace Ryujinx.Graphics.Gpu.Image
 {
@@ -15,11 +16,14 @@ namespace Ryujinx.Graphics.Gpu.Image
 
         private long _totalSize;
 
+        private bool _loadingCache;
+
         public DiskTextureCache() 
         {
             _diskTextureCache = new Dictionary<string, byte[]>();
             _timeTextureCache = new LinkedList<string>();
             _totalSize = 0;
+            _loadingCache = false;
         }
 
         public DiskTextureCache(string textureCacheFolder) 
@@ -27,27 +31,32 @@ namespace Ryujinx.Graphics.Gpu.Image
             _diskTextureCache = new Dictionary<string, byte[]>();
             _timeTextureCache = new LinkedList<string>();
             _totalSize = 0;
+            _loadingCache = true;
 
-            InitCache(textureCacheFolder);
+            new Task(() => { 
+                InitCache(textureCacheFolder);
+                _loadingCache = false;
+            }).Start();
         }
 
         private void InitCache(string textureCacheFolder)
         {
 			if(!Directory.Exists(textureCacheFolder)) return;
 
-            Logger.Info?.Print(LogClass.Gpu, "Start of disk texture cache");
+            Logger.Warning?.Print(LogClass.Gpu, "Start of disk texture cache");
 			
             foreach(string file in Directory.GetFiles(textureCacheFolder))
             {
-                Add(Path.GetFileNameWithoutExtension(file), File.ReadAllBytes(file));
+                Add(Path.GetFileNameWithoutExtension(file), File.ReadAllBytes(file), true);
                 if(_totalSize+(10 * 1024 * 1024) > MaxTextureCacheCapacity) return;
             }
 
-            Logger.Info?.Print(LogClass.Gpu, "End of disk texture cache. Total Cache: " + _totalSize);
+            Logger.Warning?.Print(LogClass.Gpu, "End of disk texture cache. Total Cache: " + _totalSize);
         } 
 
-        public void Add(string textureId, byte[] texture) 
+        public void Add(string textureId, byte[] texture, bool fromLoading = false) 
         {
+            if(_loadingCache && !fromLoading) return;
             if(_diskTextureCache.ContainsKey(textureId) || texture==null || texture.Length==0) return;
 
             while(texture.Length+_totalSize > MaxTextureCacheCapacity)
@@ -65,12 +74,14 @@ namespace Ryujinx.Graphics.Gpu.Image
 
         public void Lift(string textureId)
         {
+            if(_loadingCache) return;
             _timeTextureCache.Remove(textureId);
             _timeTextureCache.AddLast(textureId);
         }
 
         public bool IsTextureInCache(string textureId)
         {
+            if(_loadingCache) return false;
             if(_diskTextureCache.ContainsKey(textureId)) return true;
             return false;
         }
