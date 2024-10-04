@@ -3,6 +3,7 @@ using Ryujinx.Common.Logging;
 using Ryujinx.Common.Memory;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Ryujinx.Graphics.Gpu.Image
@@ -43,22 +44,23 @@ namespace Ryujinx.Graphics.Gpu.Image
 			if(!Directory.Exists(textureCacheFolder)) return;
 
             Logger.Warning?.Print(LogClass.Gpu, "Start of disk texture cache");
+            _loadingCache = true;
 			
             foreach(string file in Directory.GetFiles(textureCacheFolder))
             {
                 if(Path.GetFileName(file).EndsWith(".lz4")) {
-                    Add(Path.GetFileNameWithoutExtension(file), LZ4Pickler.Unpickle(File.ReadAllBytes(file)));
+                    Add(Path.GetFileNameWithoutExtension(file), LZ4Pickler.Unpickle(File.ReadAllBytes(file)), true);
                     if(_totalSize+(10 * 1024 * 1024) > MaxTextureCacheCapacity) return;
                 }
             }
 
-            Logger.Warning?.Print(LogClass.Gpu, "End of disk texture cache. Total Cache: " + System.Math.Truncate(_totalSize/1000000 * 1000m) / 1000m + " MiB");
+            Logger.Warning?.Print(LogClass.Gpu, "End of disk texture cache. Total Cache: " + (_totalSize / 1000000f) + " MiB");
+            _loadingCache = false;
         } 
 
-        public void Add(string textureId, byte[] texture) 
+        public void Add(string textureId, byte[] texture, bool fromLoading = false) 
         {
-            if(_loadingCache) return;
-            _loadingCache = true;
+            if(_loadingCache && !fromLoading) return;
             if(_diskTextureCache.ContainsKey(textureId) || texture==null || texture.Length==0) return;
 
             while(texture.Length+_totalSize > MaxTextureCacheCapacity)
@@ -72,8 +74,6 @@ namespace Ryujinx.Graphics.Gpu.Image
             _diskTextureCache.Add(textureId, texture);
             _timeTextureCache.AddLast(textureId);
             _totalSize += texture.Length;
-
-            _loadingCache = false;
         }
 
         public void Lift(string textureId)
