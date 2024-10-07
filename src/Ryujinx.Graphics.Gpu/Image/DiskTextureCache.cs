@@ -50,7 +50,7 @@ namespace Ryujinx.Graphics.Gpu.Image
             {
                 if(Path.GetFileName(file).EndsWith(".lz4")) {
                     Add(Path.GetFileNameWithoutExtension(file), LZ4Pickler.Unpickle(File.ReadAllBytes(file)), true);
-                    if(_totalSize+(10 * 1024 * 1024) > MaxTextureCacheCapacity) return;
+                    if(_totalSize+(10 * 1024 * 1024) > MaxTextureCacheCapacity) break;
                 }
             }
 
