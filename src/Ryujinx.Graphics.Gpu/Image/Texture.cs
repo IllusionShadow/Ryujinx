@@ -821,7 +821,6 @@ namespace Ryujinx.Graphics.Gpu.Image
                         }
                         if(GpuContext._diskTextureCache.IsTextureInCache(textureHash)) 
                         {
-                            GpuContext._diskTextureCache.Lift(textureHash);
                             return GpuContext._diskTextureCache.GetTexture(textureHash);
                         }
 
